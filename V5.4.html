@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>桃太郎電鐵 - 雙視圖地圖與車站名稱對照編輯器 V5.4 旗艦佈局版</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg-main: #0f172a;
+    --card-bg: #1e293b;
+    --card-border: #334155;
+  }
+  body {
+    background-color: var(--bg-main);
+    color: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    user-select: none;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #090d16;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+  .grid-node {
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+  .grid-node:hover {
+    transform: scale(1.05);
+    z-index: 20;
+  }
+  .dragging {
+    opacity: 0.4;
+    border: 2px dashed #38bdf8 !important;
+  }
+  .drag-over {
+    background-color: #0369a1 !important;
+    border: 2px solid #38bdf8 !important;
+  }
+  /* 平滑摺疊動畫 */
+  .collapsible-panel {
+    transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, padding 0.3s ease-in-out;
+    max-height: 500px;
+    opacity: 1;
+    overflow: hidden;
+  }
+  .collapsible-panel.collapsed {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    border-width: 0;
+  }
+</style>
+</head>
+<body class="p-3 text-xs flex flex-col h-screen overflow-hidden">
+
+  <!-- 頂部標題、狀態導覽與快速切換按鈕群 -->
+  <header class="bg-slate-800 border border-slate-700 rounded-lg p-2.5 mb-2 flex justify-between items-center shrink-0">
+    <div class="flex items-center gap-3">
+      <span class="text-base font-bold text-purple-400">🎮 桃鐵雙視圖地圖與車站對照編輯器</span>
+      <span class="bg-emerald-600 text-white font-bold text-[10px] px-2 py-0.5 rounded-full">V5.4 旗艦佈局版</span>
+      
+      <!-- 動態佈局切換按鈕 -->
+      <button id="layoutToggleBtn" onclick="toggleLayoutMode()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2.5 py-1 rounded text-[11px] transition shadow flex items-center gap-1 border border-indigo-500">
+        🔀 佈局：經典左右視圖
+      </button>
+
+      <!-- 控制面板展開/收合按鈕 -->
+      <button id="panelToggleBtn" onclick="toggleControlPanel()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold px-2.5 py-1 rounded text-[11px] transition shadow flex items-center gap-1 border border-slate-600">
+        🔼 收合控制面板
+      </button>
+
+      <!-- 底部視窗收合/展開按鈕 -->
+      <button id="bottomToggleBtn" onclick="toggleBottomPanel()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold px-2.5 py-1 rounded text-[11px] transition shadow flex items-center gap-1 border border-slate-600">
+        🔽 收合底部視窗
+      </button>
+    </div>
+
+    <!-- 頂部數量與統計資訊 -->
+    <div id="statusSummary" class="text-slate-300 font-mono text-[11px] bg-slate-900 px-3 py-1 rounded border border-slate-700 flex items-center gap-3">
+      <div>地圖節點: <span id="mapCount" class="text-purple-400 font-bold">0</span></div>
+      <div class="text-slate-600">|</div>
+      <div>左側車站格: <span id="leftStationCount" class="text-purple-300 font-bold">0</span></div>
+      <div class="text-slate-600">|</div>
+      <div>右側總車站: <span id="rightStationCount" class="text-blue-400 font-bold">0</span></div>
+      <div class="text-slate-600">|</div>
+      <div>已對照綁定: <span id="matchedCount" class="text-emerald-400 font-bold">0</span></div>
+      <div class="text-slate-600">|</div>
+      <div>未對照: <span id="unmatchedCount" class="text-amber-400 font-bold">0</span></div>
+    </div>
+  </header>
+
+  <!-- 上方可摺疊：控制面板與精準點對齊設定區 -->
+  <div id="topControlPanel" class="collapsible-panel grid grid-cols-1 md:grid-cols-12 gap-2 mb-2 shrink-0">
+    
+    <!-- 左區：JSON 載入與精準點對齊工具 (8欄) -->
+    <div class="md:col-span-8 bg-slate-800 border border-slate-700 rounded-lg p-2.5 flex flex-col gap-2">
+      
+      <!-- 精準點對齊操作條 -->
+      <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900/80 p-2 rounded border border-slate-700">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button id="toggleAnchorModeBtn" onclick="toggleAnchorPickingMode()" class="bg-slate-700 text-slate-300 hover:bg-slate-600 font-bold px-2.5 py-1 rounded text-[11px] transition flex items-center gap-1 border border-slate-600">
+            🎯 點選精準點 (關閉)
+          </button>
+          
+          <!-- 左側手動輸入 -->
+          <div class="flex items-center gap-1 bg-purple-950/60 p-1 rounded border border-purple-800">
+            <span class="text-purple-300 font-bold text-[10px]">左側:</span>
+            <input type="number" id="inputAnchorLeftX" placeholder="X" onchange="onManualAnchorInputChange()" class="w-10 bg-slate-950 text-purple-300 text-center font-mono border border-slate-700 rounded px-1 py-0.5 focus:outline-none focus:border-purple-500">
+            <span class="text-slate-500">,</span>
+            <input type="number" id="inputAnchorLeftY" placeholder="Y" onchange="onManualAnchorInputChange()" class="w-10 bg-slate-950 text-purple-300 text-center font-mono border border-slate-700 rounded px-1 py-0.5 focus:outline-none focus:border-purple-500">
+          </div>
+
+          <span class="text-slate-500 font-bold">➔</span>
+
+          <!-- 右側手動輸入 -->
+          <div class="flex items-center gap-1 bg-blue-950/60 p-1 rounded border border-blue-800">
+            <span class="text-blue-300 font-bold text-[10px]">右側:</span>
+            <input type="number" id="inputAnchorRightX" placeholder="X" onchange="onManualAnchorInputChange()" class="w-10 bg-slate-950 text-blue-300 text-center font-mono border border-slate-700 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500">
+            <span class="text-slate-500">,</span>
+            <input type="number" id="inputAnchorRightY" placeholder="Y" onchange="onManualAnchorInputChange()" class="w-10 bg-slate-950 text-blue-300 text-center font-mono border border-slate-700 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="applyAnchorAlignment()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 py-1 rounded shadow text-[11px] transition">🚀 以精準點全圖對齊</button>
+          <button onclick="clearAnchors()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 py-1 rounded text-[10px]">清空精準點</button>
+        </div>
+      </div>
+
+      <!-- JSON 輸入文字框 -->
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <span class="font-bold text-purple-400">1. 地圖 JSON (結構/線段)</span>
+            <button onclick="loadMapJSON()" class="bg-purple-600 hover:bg-purple-500 text-white px-2 py-0.5 rounded text-[10px]">載入地圖</button>
+          </div>
+          <textarea id="inputMapJSON" placeholder="貼上地圖 JSON 資料..." class="w-full h-14 bg-slate-950 text-purple-300 p-1.5 rounded border border-slate-700 font-mono text-[10px] resize-none focus:outline-none focus:border-purple-500"></textarea>
+        </div>
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <span class="font-bold text-blue-400">2. 車站名稱 JSON (名稱/座標)</span>
+            <button onclick="loadStationJSON()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded text-[10px]">載入車站</button>
+          </div>
+          <textarea id="inputStationJSON" placeholder="貼上車站名稱 JSON 資料..." class="w-full h-14 bg-slate-950 text-blue-300 p-1.5 rounded border border-slate-700 font-mono text-[10px] resize-none focus:outline-none focus:border-blue-500"></textarea>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 右區：車站暫存緩衝區與導出入口 (4欄) -->
+    <div class="md:col-span-4 bg-slate-800 border border-slate-700 rounded-lg p-2.5 flex flex-col justify-between">
+      <div>
+        <div class="font-bold text-emerald-400 mb-1 flex justify-between items-center">
+          <span>📋 目前複製/選取的車站：</span>
+          <span id="bufferedBadge" class="hidden bg-emerald-500/20 text-emerald-300 text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/30">已就緒</span>
+        </div>
+        <div id="bufferedStationDisplay" class="bg-slate-950 border border-slate-700 rounded p-2 min-h-[42px] flex items-center justify-between">
+          <span class="text-slate-500 italic">尚未選擇車站（請至右側車站視圖點擊車站）</span>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-2">
+        <button onclick="openExportModal()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 rounded text-center shadow transition">💾 開啟數據導出面板 (各別/合併)</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 主畫面：動態雙佈局渲染容器 (佔滿剩餘高度) -->
+  <div id="mainWorkspaceContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0 mb-2">
+    
+    <!-- 左側：地圖結構視圖 (始終在左側) -->
+    <div class="bg-slate-900 border border-slate-700 rounded-lg flex flex-col min-h-0 overflow-hidden relative">
+      <div class="bg-slate-800 border-b border-slate-700 px-3 py-1.5 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-purple-300 flex items-center gap-1">🗺️ 左側：地圖視圖</span>
+          <span class="bg-purple-950 text-purple-300 font-mono px-1.5 py-0.5 rounded border border-purple-800 text-[10px]">
+            車站格: <b id="titleLeftStationCount" class="text-purple-200">0</b> 站
+          </span>
+          
+          <div class="flex bg-slate-950 rounded p-0.5 border border-slate-700 ml-1">
+            <button id="modePasteBtn" onclick="switchLeftMode('paste')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-600 text-white shadow">📋 貼上站名</button>
+            <button id="modeEditBtn" onclick="switchLeftMode('edit')" class="px-2 py-0.5 rounded text-[10px] font-bold text-slate-400 hover:text-white">⚙️ 編輯屬性</button>
+            <button id="modeLeftDragBtn" onclick="switchLeftMode('drag')" class="px-2 py-0.5 rounded text-[10px] font-bold text-slate-400 hover:text-white">🖐️ 拖曳</button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+          <span class="text-slate-400 text-[10px]">縮放:</span>
+          <span id="zoomLeftLabel" class="text-purple-400 font-mono font-bold text-[10px] min-w-[32px] text-center">100%</span>
+          <button onclick="adjustZoom('left', 0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">+</button>
+          <button onclick="adjustZoom('left', -0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">-</button>
+          <button onclick="resetZoom('left')" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-slate-300 text-[10px]">🏠</button>
+        </div>
+      </div>
+
+      <div id="containerLeft" class="flex-1 overflow-auto p-4 flex justify-start items-start relative select-none">
+        <div id="mapRenderInner" class="transform-gpu transition-transform origin-top-left">
+          <div class="text-slate-500 text-center p-8">請先在上方載入地圖 JSON...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右側動態切換槽 -->
+    <div id="rightDynamicSlot" class="flex flex-col min-h-0 overflow-hidden relative">
+      <!-- 預設載入右側車站視圖 -->
+      <div id="rightStationViewWrapper" class="bg-slate-900 border border-slate-700 rounded-lg flex flex-col h-full overflow-hidden relative">
+        <div class="bg-slate-800 border-b border-slate-700 px-3 py-1.5 flex justify-between items-center shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-blue-300 flex items-center gap-1.5">🏷️ 右側：車站視圖</span>
+            <span class="bg-blue-950 text-blue-300 font-mono px-1.5 py-0.5 rounded border border-blue-800 text-[10px]">
+              總數: <b id="titleRightStationCount" class="text-blue-200">0</b> | 已對照: <b id="titleMatchedCount" class="text-emerald-400">0</b>
+            </span>
+
+            <div class="flex bg-slate-950 rounded p-0.5 border border-slate-700 ml-1">
+              <button id="modeRightCopyBtn" onclick="switchRightMode('copy')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white shadow">📋 複製</button>
+              <button id="modeRightEditBtn" onclick="switchRightMode('edit')" class="px-2 py-0.5 rounded text-[10px] font-bold text-slate-400 hover:text-white">⚙️ 編輯</button>
+              <button id="modeRightDragBtn" onclick="switchRightMode('drag')" class="px-2 py-0.5 rounded text-[10px] font-bold text-slate-400 hover:text-white">🖐️ 拖曳</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+            <span class="text-slate-400 text-[10px]">縮放:</span>
+            <span id="zoomRightLabel" class="text-blue-400 font-mono font-bold text-[10px] min-w-[32px] text-center">100%</span>
+            <button onclick="adjustZoom('right', 0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">+</button>
+            <button onclick="adjustZoom('right', -0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">-</button>
+            <button onclick="resetZoom('right')" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-slate-300 text-[10px]">🏠</button>
+          </div>
+        </div>
+        <div id="containerRight" class="flex-1 overflow-auto p-4 flex justify-start items-start relative select-none">
+          <div id="stationRenderInner" class="transform-gpu transition-transform origin-top-left">
+            <div class="text-slate-500 text-center p-8">請先在上方載入車站 JSON...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 下方動態底座容器 -->
+  <div id="bottomDynamicBase" style="height: 12rem;" class="bg-slate-900 border border-slate-700 rounded-lg flex flex-col shrink-0 overflow-hidden relative transition-all duration-200">
+    <div class="bg-slate-800 border-b border-slate-700 px-3 py-1 flex justify-between items-center shrink-0">
+      <div class="flex items-center gap-3">
+        <span class="font-bold text-amber-400 flex items-center gap-1">🖼️ 獨立參考底圖視窗</span>
+        <label class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 py-0.5 rounded text-[10px] cursor-pointer">
+          📂 上傳圖片
+          <input type="file" id="imgFileInput" accept="image/*" class="hidden" onchange="loadRefImageFile(event)">
+        </label>
+        <div class="flex items-center gap-1">
+          <input type="text" id="imgUrlInput" placeholder="或貼上圖片 URL 網址..." class="bg-slate-950 text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-700 w-48 focus:outline-none focus:border-amber-500">
+          <button onclick="loadRefImageUrl()" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">載入</button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+        <span class="text-slate-400 text-[10px]">底圖縮放:</span>
+        <span id="zoomImgLabel" class="text-amber-400 font-mono font-bold text-[10px] min-w-[32px] text-center">100%</span>
+        <button onclick="adjustImageZoom(0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">+</button>
+        <button onclick="adjustImageZoom(-0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">-</button>
+        <button onclick="resetImageTransform()" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-slate-300 text-[10px]">🏠 重置視角</button>
+      </div>
+    </div>
+
+    <!-- 圖片畫布平移容器 -->
+    <div id="imgViewerViewport" class="flex-1 overflow-hidden relative cursor-grab bg-slate-950/80 flex items-start justify-start" onmousedown="startImgDrag(event)" onmousemove="onImgDrag(event)" onmouseup="stopImgDrag()" onmouseleave="stopImgDrag()" onwheel="onImgWheel(event)">
+      <div id="imgViewerTransformTarget" class="absolute origin-top-left transition-transform duration-75 p-6">
+        <div id="imgPlaceholderText" class="text-slate-600 text-[11px] select-none text-left">
+          未載入底圖<br>(點擊上方「📂 上傳圖片」或貼上網址載入參考地圖)
+        </div>
+        <img id="refImageElement" class="hidden max-w-none pointer-events-none" alt="Reference Map">
+      </div>
+    </div>
+  </div>
+
+  <!-- 左側：圖塊屬性編輯 Modal 彈窗 -->
+  <div id="nodeEditModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-sm p-4 shadow-2xl flex flex-col gap-3">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+        <span class="font-bold text-purple-300 text-sm">⚙️ 編輯左側圖塊屬性 <span id="editCoordText" class="text-amber-400 font-mono"></span></span>
+        <button onclick="closeNodeEditModal()" class="text-slate-400 hover:text-white font-bold">✕</button>
+      </div>
+
+      <div>
+        <label class="text-slate-300 font-bold block mb-1">圖塊類型 (Type)：</label>
+        <select id="editNodeTypeSelect" class="w-full bg-slate-950 text-white border border-slate-700 rounded p-1.5 font-bold focus:outline-none focus:border-purple-500">
+          <option value="normal">🟣 車站 (normal)</option>
+          <option value="blue">🔵 藍格 (blue)</option>
+          <option value="red">🔴 紅格 (red)</option>
+          <option value="yellow">🟡 黃格 (yellow)</option>
+          <option value="card_shop">🏪 卡片賣場 (card_shop)</option>
+          <option value="copy_station">🖨️ 複製車站 (copy_station)</option>
+          <option value="flight_station">✈️ 飛航車站 (flight_station)</option>
+          <option value="ship_station">🚢 乘船車站 (ship_station)</option>
+          <option value="rail_station">🛤️ 鐵道站 (rail_station)</option>
+          <option value="heli_station">🚁 直升機站 (heli_station)</option>
+          <option value="reset_station">🔄 重置車站 (reset_station)</option>
+          <option value="good_card">💎 好卡片站 (good_card)</option>
+          <option value="bank">🔗 連接站 (bank)</option>
+          <option value="special">⚙️ 特殊格 (special)</option>
+          <option value="monster">👾 怪獸格 (monster)</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="text-slate-300 font-bold block mb-1">中文站名 (Label)：</label>
+        <input type="text" id="editNodeLabelInput" class="w-full bg-slate-950 text-emerald-400 border border-slate-700 rounded p-1.5 focus:outline-none focus:border-emerald-500" placeholder="例如: 東京">
+      </div>
+
+      <div>
+        <label class="text-slate-300 font-bold block mb-1">日文站名 (JpName)：</label>
+        <input type="text" id="editNodeJpLabelInput" class="w-full bg-slate-950 text-blue-400 border border-slate-700 rounded p-1.5 focus:outline-none focus:border-blue-500" placeholder="例如: とうきょう">
+      </div>
+
+      <div class="flex gap-2 pt-2 border-t border-slate-700">
+        <button onclick="saveNodeEdit()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 rounded transition">儲存修改</button>
+        <button onclick="closeNodeEditModal()" class="px-4 bg-slate-700 hover:bg-slate-600 text-slate-300 py-1.5 rounded">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右側：車站屬性編輯 Modal 彈窗 -->
+  <div id="stationEditModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-sm p-4 shadow-2xl flex flex-col gap-3">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+        <span class="font-bold text-blue-300 text-sm">⚙️ 編輯右側車站資料</span>
+        <button onclick="closeStationEditModal()" class="text-slate-400 hover:text-white font-bold">✕</button>
+      </div>
+
+      <div>
+        <label class="text-slate-300 font-bold block mb-1">中文站名 (Label)：</label>
+        <input type="text" id="editStationLabelInput" class="w-full bg-slate-950 text-emerald-400 border border-slate-700 rounded p-1.5 focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div>
+        <label class="text-slate-300 font-bold block mb-1">日文站名 (JpName)：</label>
+        <input type="text" id="editStationJpInput" class="w-full bg-slate-950 text-blue-400 border border-slate-700 rounded p-1.5 focus:outline-none focus:border-blue-500">
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-slate-300 font-bold block mb-1">X 座標：</label>
+          <input type="number" id="editStationXInput" class="w-full bg-slate-950 text-amber-400 border border-slate-700 rounded p-1.5 font-mono focus:outline-none focus:border-amber-500">
+        </div>
+        <div>
+          <label class="text-slate-300 font-bold block mb-1">Y 座標：</label>
+          <input type="number" id="editStationYInput" class="w-full bg-slate-950 text-amber-400 border border-slate-700 rounded p-1.5 font-mono focus:outline-none focus:border-amber-500">
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2 border-t border-slate-700">
+        <button onclick="saveStationEdit()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-1.5 rounded transition">儲存車站資料</button>
+        <button onclick="closeStationEditModal()" class="px-4 bg-slate-700 hover:bg-slate-600 text-slate-300 py-1.5 rounded">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 數據導出 Modal 彈窗 -->
+  <div id="exportModal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-3xl flex flex-col max-h-[90vh] shadow-2xl">
+      <div class="p-3 border-b border-slate-700 flex justify-between items-center">
+        <span class="font-bold text-emerald-400 text-sm">📊 數據導出與備份中心</span>
+        <button onclick="closeExportModal()" class="text-slate-400 hover:text-white font-bold text-base px-2">✕</button>
+      </div>
+      <div class="p-4 flex-1 overflow-y-auto space-y-4">
+        
+        <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+          <div class="font-bold text-slate-200 mb-2">📤 選擇導出類型：</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button onclick="generateExport('map')" class="bg-purple-700 hover:bg-purple-600 text-white font-bold p-2 rounded text-center transition">
+              🗺️ 僅導出「地圖 JSON」
+            </button>
+            <button onclick="generateExport('station')" class="bg-blue-700 hover:bg-blue-600 text-white font-bold p-2 rounded text-center transition">
+              🏷️ 僅導出「車站名稱 JSON」
+            </button>
+            <button onclick="generateExport('merged')" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold p-2 rounded text-center transition">
+              📦 導出「合併完整 JSON」
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <span id="exportTypeTitle" class="font-bold text-emerald-300">導出數據預覽 (合併 JSON)</span>
+            <div class="flex gap-2">
+              <button onclick="copyExportText()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[11px] font-bold">📋 複製內容</button>
+              <button onclick="downloadExportJSON()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded text-[11px]">📥 下載檔名</button>
+            </div>
+          </div>
+          <textarea id="exportArea" readonly class="w-full h-64 bg-slate-950 text-emerald-400 font-mono text-[11px] p-3 rounded border border-slate-700 resize-none focus:outline-none"></textarea>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+<script>
+// --- 全域資料狀態 ---
+const 屬性顏色 = {
+  normal: "#8e44ad",         // 🟣 車站
+  blue: "#2563eb",           // 🔵 藍格
+  red: "#dc2626",            // 🔴 紅格
+  yellow: "#eab308",         // 🟡 黃格
+  card_shop: "#0d9488",      // 🏪 卡片賣場
+  copy_station: "#475569",   // 🖨️ 複製車站
+  flight_station: "#334155", // ✈️ 飛航車站
+  ship_station: "#1e293b",   // 🚢 乘船車站
+  rail_station: "#16a34a",   // 🛤️ 鐵道站
+  heli_station: "#ea580c",   // 🚁 直升機站
+  reset_station: "#d97706",  // 🔄 重置周遊車站
+  good_card: "#db2777",      // 💎 好卡片車站
+  bank: "#ca8a04",           // 🔗 連接站
+  special: "#64748b",        // ⚙️ 特殊
+  monster: "#9f1239"         // 👾 名產怪獸
+};
+
+const 屬性全名 = {
+  normal: "車站", blue: "藍格", red: "紅格", yellow: "黃格",
+  card_shop: "賣場", copy_station: "複製", flight_station: "飛航",
+  ship_station: "乘船", rail_station: "鐵道", heli_station: "直升",
+  reset_station: "重置", good_card: "好卡", bank: "連接",
+  special: "特殊", monster: "怪獸"
+};
+
+let mapData = { nodes: [], blocked: [], oneway: [], shortcuts: [], types: {}, labels: {}, jpnames: {} };
+let stationData = []; // [{x, y, label, jpname}, ...]
+
+let anchorMapNode = null;       // 左側精準點 {x, y}
+let anchorStationNode = null;   // 右側精準點 {x, y}
+let isAnchorPickingMode = false; // 是否開啟「點選精準點模式」
+
+let bufferedStation = null;     // 複製選取的車站
+let leftMouseMode = 'paste';    // 左側操作模式: 'paste', 'edit', 'drag'
+let rightMouseMode = 'copy';    // 右側操作模式: 'copy', 'edit', 'drag'
+
+let currentEditingNode = null;  // 左側當前編輯圖塊 {x, y}
+let currentEditingStationIndex = -1; // 右側當前編輯車站索引
+let draggedStationIndex = -1;   // 右側拖曳車站索引
+let draggedLeftNode = null;     // 左側拖曳圖塊 {x, y, data}
+
+let zoomLeft = 1.0;
+let zoomRight = 1.0;
+
+// --- 獨立底圖參考視窗狀態 (含暫存) ---
+let imgZoom = 1.0;
+let imgPanX = 0;
+let imgPanY = 0;
+let isDraggingImg = false;
+let startMouseX = 0;
+let startMouseY = 0;
+let cachedImageSrc = "";        // 暫存已載入的圖片來源資料
+
+// --- 版面佈局模式狀態 ('classic' 或 'sideBySideImage') ---
+let currentLayoutMode = 'classic';
+
+// --- 控制面板摺疊與展開切換 ---
+let isControlPanelCollapsed = false;
+
+function toggleControlPanel() {
+  isControlPanelCollapsed = !isControlPanelCollapsed;
+  let panel = document.getElementById('topControlPanel');
+  let btn = document.getElementById('panelToggleBtn');
+  if (isControlPanelCollapsed) {
+    panel.classList.add('collapsed');
+    btn.innerHTML = "🔽 展開控制面板";
+  } else {
+    panel.classList.remove('collapsed');
+    btn.innerHTML = "🔼 收合控制面板";
+  }
+}
+
+// --- 底部視窗收合狀態控制 ---
+let isBottomPanelCollapsed = false;
+
+function toggleBottomPanel() {
+  isBottomPanelCollapsed = !isBottomPanelCollapsed;
+  let bottomBase = document.getElementById('bottomDynamicBase');
+  let btn = document.getElementById('bottomToggleBtn');
+  
+  if (isBottomPanelCollapsed) {
+    bottomBase.style.height = '0px';
+    bottomBase.style.minHeight = '0px';
+    bottomBase.style.overflow = 'hidden';
+    bottomBase.style.borderWidth = '0px';
+    bottomBase.style.marginBottom = '0px';
+    if (btn) btn.innerHTML = "🔼 展開底部視窗";
+  } else {
+    bottomBase.style.height = currentLayoutMode === 'classic' ? '12rem' : '16rem';
+    bottomBase.style.minHeight = '';
+    bottomBase.style.overflow = 'hidden';
+    bottomBase.style.borderWidth = '1px';
+    bottomBase.style.marginBottom = '';
+    if (btn) btn.innerHTML = "🔽 收合底部視窗";
+  }
+}
+
+// --- 動態雙佈局切換功能 (已修復切換清空底圖問題) ---
+function toggleLayoutMode() {
+  // 1. 在切換前，先備份目前底圖的 src (如果有載入的話)
+  let currentImgEl = document.getElementById('refImageElement');
+  if (currentImgEl && currentImgEl.src && !currentImgEl.classList.contains('hidden')) {
+    cachedImageSrc = currentImgEl.src;
+  }
+
+  let rightSlot = document.getElementById('rightDynamicSlot');
+  let bottomBase = document.getElementById('bottomDynamicBase');
+  let layoutBtn = document.getElementById('layoutToggleBtn');
+
+  if (currentLayoutMode === 'classic') {
+    // 切換至模式二：右側為底圖 (等高)，下方為寬幅車站清單
+    currentLayoutMode = 'sideBySideImage';
+    layoutBtn.innerHTML = "🔀 佈局：右側底圖對比";
+    layoutBtn.className = "bg-amber-600 hover:bg-amber-500 text-white font-bold px-2.5 py-1 rounded text-[11px] transition shadow flex items-center gap-1 border border-amber-500";
+
+    // 1. 下方底座改放車站清單
+    bottomBase.style.height = isBottomPanelCollapsed ? '0px' : '16rem';
+    bottomBase.innerHTML = `
+      <div class="bg-slate-800 border-b border-slate-700 px-3 py-1.5 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-blue-300 flex items-center gap-1.5">🏷️ 底部寬幅：車站清單視圖</span>
+          <span class="bg-blue-950 text-blue-300 font-mono px-1.5 py-0.5 rounded border border-blue-800 text-[10px]">
+            總數: <b id="titleRightStationCount" class="text-blue-200">0</b> | 已對照: <b id="titleMatchedCount" class="text-emerald-400">0</b>
+          </span>
+          <div class="flex bg-slate-950 rounded p-0.5 border border-slate-700 ml-1">
+            <button id="modeRightCopyBtn" onclick="switchRightMode('copy')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white shadow">📋 複製</button>
+            <button id="modeRightEditBtn" onclick="switchRightMode('edit')" class="px-2 py-0.5 rounded text-[10px] font-bold text-slate-400 hover:text-white">⚙️ 編輯</button>
+            <button id="modeRightDragBtn" onclick="switchRightMode('drag')" class="px-2 py-0.5 rounded text-[10px] font-bold text-slate-400 hover:text-white">🖐️ 拖曳</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+          <span class="text-slate-400 text-[10px]">縮放:</span>
+          <span id="zoomRightLabel" class="text-blue-400 font-mono font-bold text-[10px] min-w-[32px] text-center">100%</span>
+          <button onclick="adjustZoom('right', 0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">+</button>
+          <button onclick="adjustZoom('right', -0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">-</button>
+          <button onclick="resetZoom('right')" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-slate-300 text-[10px]">🏠</button>
+        </div>
+      </div>
+      <div id="containerRight" class="flex-1 overflow-auto p-4 flex justify-start items-start relative select-none">
+        <div id="stationRenderInner" class="transform-gpu transition-transform origin-top-left">
+          <div class="text-slate-500 text-center p-8">請先在上方載入車站 JSON...</div>
+        </div>
+      </div>
+    `;
+
+    // 2. 右側槽換成獨立底圖視窗 (h-full 確保與左側等高)
+    rightSlot.innerHTML = `
+      <div id="refImageViewWrapper" class="bg-slate-900 border border-slate-700 rounded-lg flex flex-col h-full overflow-hidden relative">
+        <div class="bg-slate-800 border-b border-slate-700 px-3 py-1 flex justify-between items-center shrink-0">
+          <div class="flex items-center gap-3">
+            <span class="font-bold text-amber-400 flex items-center gap-1">🖼️ 獨立參考底圖視窗</span>
+            <label class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 py-0.5 rounded text-[10px] cursor-pointer">
+              📂 上傳圖片
+              <input type="file" id="imgFileInput" accept="image/*" class="hidden" onchange="loadRefImageFile(event)">
+            </label>
+            <div class="flex items-center gap-1">
+              <input type="text" id="imgUrlInput" placeholder="或貼上圖片 URL 網址..." class="bg-slate-950 text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-700 w-36 focus:outline-none focus:border-amber-500">
+              <button onclick="loadRefImageUrl()" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">載入</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+            <span class="text-slate-400 text-[10px]">縮放:</span>
+            <span id="zoomImgLabel" class="text-amber-400 font-mono font-bold text-[10px] min-w-[32px] text-center">100%</span>
+            <button onclick="adjustImageZoom(0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">+</button>
+            <button onclick="adjustImageZoom(-0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">-</button>
+            <button onclick="resetImageTransform()" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-slate-300 text-[10px]">🏠</button>
+          </div>
+        </div>
+        <div id="imgViewerViewport" class="flex-1 overflow-hidden relative cursor-grab bg-slate-950/80 flex items-start justify-start" onmousedown="startImgDrag(event)" onmousemove="onImgDrag(event)" onmouseup="stopImgDrag()" onmouseleave="stopImgDrag()" onwheel="onImgWheel(event)">
+          <div id="imgViewerTransformTarget" class="absolute origin-top-left transition-transform duration-75 p-6">
+            <div id="imgPlaceholderText" class="text-slate-600 text-[11px] select-none text-left">
+              未載入底圖<br>(點擊上方「📂 上傳圖片」或貼上網址載入參考地圖)
+            </div>
+            <img id="refImageElement" class="hidden max-w-none pointer-events-none" alt="Reference Map">
+          </div>
+        </div>
+      </div>
+    `;
+
+  } else {
+    // 切換回模式一：經典左右視圖 + 下方獨立底圖
+    currentLayoutMode = 'classic';
+    layoutBtn.innerHTML = "🔀 佈局：經典左右視圖";
+    layoutBtn.className = "bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2.5 py-1 rounded text-[11px] transition shadow flex items-center gap-1 border border-indigo-500";
+
+    // 1. 右側槽換回車站視圖
+    rightSlot.innerHTML = `
+      <div id="rightStationViewWrapper" class="bg-slate-900 border border-slate-700 rounded-lg flex flex-col h-full overflow-hidden relative">
+        <div class="bg-slate-800 border-b border-slate-700 px-3 py-1.5 flex justify-between items-center shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-blue-300 flex items-center gap-1.5">🏷️ 右側：車站視圖</span>
+            <span class="bg-blue-950 text-blue-300 font-mono px-1.5 py-0.5 rounded border border-blue-800 text-[10px]">
+              總數: <b id="titleRightStationCount" class="text-blue-200">0</b> | 已對照: <b id="titleMatchedCount" class="text-emerald-400">0</b>
+            </span>
+            <div class="flex bg-slate-950 rounded p-0.5 border border-slate-700 ml-1">
+              <button id="modeRightCopyBtn" onclick="switchRightMode('copy')" class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white shadow">📋 複製</button>
+              <button id="modeRightEditBtn" onclick="switchRightMode('edit')" class="px-2 py-0.5 rounded text-[10px] font-bold text-slate-400 hover:text-white">⚙️ 編輯</button>
+              <button id="modeRightDragBtn" onclick="switchRightMode('drag')" class="px-2 py-0.5 rounded text-[10px] font-bold text-slate-400 hover:text-white">🖐️ 拖曳</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+            <span class="text-slate-400 text-[10px]">縮放:</span>
+            <span id="zoomRightLabel" class="text-blue-400 font-mono font-bold text-[10px] min-w-[32px] text-center">100%</span>
+            <button onclick="adjustZoom('right', 0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">+</button>
+            <button onclick="adjustZoom('right', -0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">-</button>
+            <button onclick="resetZoom('right')" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-slate-300 text-[10px]">🏠</button>
+          </div>
+        </div>
+        <div id="containerRight" class="flex-1 overflow-auto p-4 flex justify-start items-start relative select-none">
+          <div id="stationRenderInner" class="transform-gpu transition-transform origin-top-left">
+            <div class="text-slate-500 text-center p-8">請先在上方載入車站 JSON...</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 2. 下方底座換回參考底圖視窗
+    bottomBase.style.height = isBottomPanelCollapsed ? '0px' : '12rem';
+    bottomBase.innerHTML = `
+      <div class="bg-slate-800 border-b border-slate-700 px-3 py-1 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="font-bold text-amber-400 flex items-center gap-1">🖼️ 獨立參考底圖視窗</span>
+          <label class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 py-0.5 rounded text-[10px] cursor-pointer">
+            📂 上傳圖片
+            <input type="file" id="imgFileInput" accept="image/*" class="hidden" onchange="loadRefImageFile(event)">
+          </label>
+          <div class="flex items-center gap-1">
+            <input type="text" id="imgUrlInput" placeholder="或貼上圖片 URL 網址..." class="bg-slate-950 text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-700 w-48 focus:outline-none focus:border-amber-500">
+            <button onclick="loadRefImageUrl()" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">載入</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+          <span class="text-slate-400 text-[10px]">底圖縮放:</span>
+          <span id="zoomImgLabel" class="text-amber-400 font-mono font-bold text-[10px] min-w-[32px] text-center">100%</span>
+          <button onclick="adjustImageZoom(0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">+</button>
+          <button onclick="adjustImageZoom(-0.1)" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-white font-bold">-</button>
+          <button onclick="resetImageTransform()" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-slate-300 text-[10px]">🏠 重置視角</button>
+        </div>
+      </div>
+      <div id="imgViewerViewport" class="flex-1 overflow-hidden relative cursor-grab bg-slate-950/80 flex items-start justify-start" onmousedown="startImgDrag(event)" onmousemove="onImgDrag(event)" onmouseup="stopImgDrag()" onmouseleave="stopImgDrag()" onwheel="onImgWheel(event)">
+        <div id="imgViewerTransformTarget" class="absolute origin-top-left transition-transform duration-75 p-6">
+          <div id="imgPlaceholderText" class="text-slate-600 text-[11px] select-none text-left">
+            未載入底圖<br>(點擊上方「📂 上傳圖片」或貼上網址載入參考地圖)
+          </div>
+          <img id="refImageElement" class="hidden max-w-none pointer-events-none" alt="Reference Map">
+        </div>
+      </div>
+    `;
+    bottomBase.className = "bg-slate-900 border border-slate-700 rounded-lg flex flex-col shrink-0 overflow-hidden relative transition-all duration-200";
+  }
+
+  // 3. 如果原本有載入圖片，切換後自動復原顯示
+  if (cachedImageSrc) {
+    displayRefImage(cachedImageSrc);
+  }
+
+  renderLeftMap();
+  renderRightStation();
+  updateSummary();
+}
+
+// --- 切換/開關 精準點點選模式 ---
+function toggleAnchorPickingMode() {
+  isAnchorPickingMode = !isAnchorPickingMode;
+  let btn = document.getElementById('toggleAnchorModeBtn');
+  if (isAnchorPickingMode) {
+    btn.className = "bg-amber-600 text-white font-bold px-2.5 py-1 rounded text-[11px] transition flex items-center gap-1 border border-amber-400 shadow-md animate-pulse";
+    btn.innerHTML = "🎯 點選精準點 (開啟中)";
+  } else {
+    btn.className = "bg-slate-700 text-slate-300 hover:bg-slate-600 font-bold px-2.5 py-1 rounded text-[11px] transition flex items-center gap-1 border border-slate-600";
+    btn.innerHTML = "🎯 點選精準點 (關閉)";
+  }
+}
+
+// --- 手動/貼上 座標輸入連動 ---
+function onManualAnchorInputChange() {
+  let lx = parseInt(document.getElementById('inputAnchorLeftX').value);
+  let ly = parseInt(document.getElementById('inputAnchorLeftY').value);
+  let rx = parseInt(document.getElementById('inputAnchorRightX').value);
+  let ry = parseInt(document.getElementById('inputAnchorRightY').value);
+
+  anchorMapNode = (!isNaN(lx) && !isNaN(ly)) ? { x: lx, y: ly } : null;
+  anchorStationNode = (!isNaN(rx) && !isNaN(ry)) ? { x: rx, y: ry } : null;
+
+  renderLeftMap();
+  renderRightStation();
+}
+
+function updateAnchorInputFields() {
+  document.getElementById('inputAnchorLeftX').value = anchorMapNode ? anchorMapNode.x : "";
+  document.getElementById('inputAnchorLeftY').value = anchorMapNode ? anchorMapNode.y : "";
+  document.getElementById('inputAnchorRightX').value = anchorStationNode ? anchorStationNode.x : "";
+  document.getElementById('inputAnchorRightY').value = anchorStationNode ? anchorStationNode.y : "";
+}
+
+// --- 切換左側操作模式 ---
+function switchLeftMode(mode) {
+  leftMouseMode = mode;
+  let pasteBtn = document.getElementById('modePasteBtn');
+  let editBtn = document.getElementById('modeEditBtn');
+  let dragBtn = document.getElementById('modeLeftDragBtn');
+
+  if (pasteBtn) pasteBtn.className = "px-2 py-0.5 rounded text-[10px] font-bold " + (mode === 'paste' ? "bg-purple-600 text-white shadow" : "text-slate-400 hover:text-white");
+  if (editBtn) editBtn.className = "px-2 py-0.5 rounded text-[10px] font-bold " + (mode === 'edit' ? "bg-purple-600 text-white shadow" : "text-slate-400 hover:text-white");
+  if (dragBtn) dragBtn.className = "px-2 py-0.5 rounded text-[10px] font-bold " + (mode === 'drag' ? "bg-purple-600 text-white shadow" : "text-slate-400 hover:text-white");
+
+  renderLeftMap();
+}
+
+// --- 切換右側操作模式 ---
+function switchRightMode(mode) {
+  rightMouseMode = mode;
+  let copyBtn = document.getElementById('modeRightCopyBtn');
+  let editBtn = document.getElementById('modeRightEditBtn');
+  let dragBtn = document.getElementById('modeRightDragBtn');
+
+  if (copyBtn) copyBtn.className = "px-2 py-0.5 rounded text-[10px] font-bold " + (mode === 'copy' ? "bg-blue-600 text-white shadow" : "text-slate-400 hover:text-white");
+  if (editBtn) editBtn.className = "px-2 py-0.5 rounded text-[10px] font-bold " + (mode === 'edit' ? "bg-blue-600 text-white shadow" : "text-slate-400 hover:text-white");
+  if (dragBtn) dragBtn.className = "px-2 py-0.5 rounded text-[10px] font-bold " + (mode === 'drag' ? "bg-blue-600 text-white shadow" : "text-slate-400 hover:text-white");
+
+  renderRightStation();
+}
+
+// --- 解析圖塊屬性 ---
+function parseNodeType(typeStr) {
+  if (!typeStr) return "normal";
+  let t = typeStr.toString().toLowerCase().trim();
+  if (t === "normal" || t === "station" || t === "車站") return "normal";
+  if (屬性顏色[t]) return t;
+  return "normal";
+}
+
+// --- 載入地圖 JSON ---
+function loadMapJSON() {
+  let raw = document.getElementById('inputMapJSON').value.trim();
+  if (!raw) { alert("請輸入地圖 JSON 資料！"); return; }
+  try {
+    let parsed = JSON.parse(raw);
+    mapData.nodes = [];
+    mapData.types = {};
+    mapData.labels = {};
+    mapData.jpnames = {};
+    mapData.blocked = parsed.blocked || [];
+    mapData.oneway = parsed.oneway || [];
+    mapData.shortcuts = parsed.shortcuts || [];
+
+    let nodeList = parsed.nodes || parsed.path || [];
+    nodeList.forEach(n => {
+      mapData.nodes.push({ x: n.x, y: n.y });
+      let typeKey = parseNodeType(n.type);
+      mapData.types[`${n.x},${n.y}`] = typeKey;
+      if (n.label) mapData.labels[`${n.x},${n.y}`] = n.label;
+      if (n.jpname) mapData.jpnames[`${n.x},${n.y}`] = n.jpname;
+    });
+
+    renderLeftMap();
+    updateSummary();
+  } catch(e) {
+    alert("地圖 JSON 解析失敗，請檢查格式是否正確。");
+  }
+}
+
+// --- 載入車站 JSON ---
+function loadStationJSON() {
+  let raw = document.getElementById('inputStationJSON').value.trim();
+  if (!raw) { alert("請輸入車站 JSON 資料！"); return; }
+  try {
+    let parsed = JSON.parse(raw);
+    stationData = [];
+    let list = Array.isArray(parsed) ? parsed : (parsed.stations || parsed.nodes || []);
+    
+    list.forEach(item => {
+      let x = item.x, y = item.y;
+      if (x === undefined && item.coords) {
+        y = Math.round(item.coords[0]);
+        x = Math.round(item.coords[1]);
+      }
+      if (x !== undefined && y !== undefined) {
+        stationData.push({
+          x: parseInt(x),
+          y: parseInt(y),
+          label: item.label || item.name || "未命名車站",
+          jpname: item.jpname || ""
+        });
+      }
+    });
+
+    renderRightStation();
+    updateSummary();
+  } catch(e) {
+    alert("車站 JSON 解析失敗，請檢查格式是否正確。");
+  }
+}
+
+// --- 基準點（精準點）對齊計算 ---
+function setMapAnchor(x, y) {
+  anchorMapNode = { x, y };
+  updateAnchorInputFields();
+  renderLeftMap();
+}
+
+function setStationAnchor(x, y) {
+  anchorStationNode = { x, y };
+  updateAnchorInputFields();
+  renderRightStation();
+}
+
+function clearAnchors() {
+  anchorMapNode = null;
+  anchorStationNode = null;
+  updateAnchorInputFields();
+  renderLeftMap();
+  renderRightStation();
+}
+
+function applyAnchorAlignment() {
+  if (!anchorMapNode || !anchorStationNode) {
+    alert("請先指定左側與右側的精準點！");
+    return;
+  }
+
+  let dx = anchorMapNode.x - anchorStationNode.x;
+  let dy = anchorMapNode.y - anchorStationNode.y;
+
+  let matchCount = 0;
+  stationData.forEach(st => {
+    let targetX = st.x + dx;
+    let targetY = st.y + dy;
+    let exists = mapData.nodes.some(n => n.x === targetX && n.y === targetY);
+    if (exists) {
+      mapData.labels[`${targetX},${targetY}`] = st.label;
+      if (st.jpname) mapData.jpnames[`${targetX},${targetY}`] = st.jpname;
+      matchCount++;
+    }
+  });
+
+  renderLeftMap();
+  renderRightStation();
+  updateSummary();
+  alert(`🎯 基準點對齊完成！偏移量 (ΔX: ${dx}, ΔY: ${dy})，成功自動綁定 ${matchCount} 筆車站！`);
+}
+
+// --- 選取複製車站 ---
+function bufferStation(x, y, label, jpname) {
+  bufferedStation = { x, y, label, jpname };
+  let badge = document.getElementById('bufferedBadge');
+  if (badge) badge.classList.remove('hidden');
+  let display = document.getElementById('bufferedStationDisplay');
+  if (display) {
+    display.innerHTML = `
+      <div>
+        <span class="font-bold text-emerald-400 text-sm">${label}</span>
+        <span class="text-slate-400 text-xs ml-1">(${jpname || '無日文'})</span>
+      </div>
+      <span class="bg-emerald-950 text-emerald-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-emerald-800">原始: (${x}, ${y})</span>
+    `;
+  }
+}
+
+// --- 左側地圖點擊處理 ---
+function handleLeftNodeClick(x, y) {
+  if (isAnchorPickingMode) {
+    setMapAnchor(x, y);
+    return;
+  }
+
+  if (leftMouseMode === 'edit') {
+    openNodeEditModal(x, y);
+    return;
+  }
+
+  if (leftMouseMode === 'paste' && bufferedStation) {
+    mapData.labels[`${x},${y}`] = bufferedStation.label;
+    if (bufferedStation.jpname) mapData.jpnames[`${x},${y}`] = bufferedStation.jpname;
+    renderLeftMap();
+    renderRightStation();
+    updateSummary();
+  }
+}
+
+// --- 右側車站點擊處理 ---
+function handleRightStationClick(index) {
+  let st = stationData[index];
+  if (!st) return;
+
+  if (isAnchorPickingMode) {
+    setStationAnchor(st.x, st.y);
+    return;
+  }
+
+  if (rightMouseMode === 'copy') {
+    bufferStation(st.x, st.y, st.label, st.jpname);
+  } else if (rightMouseMode === 'edit') {
+    openStationEditModal(index);
+  }
+}
+
+// --- 左側拖曳邏輯 ---
+function handleLeftDragStart(e, x, y) {
+  if (leftMouseMode !== 'drag') return;
+  draggedLeftNode = {
+    x, y,
+    type: mapData.types[`${x},${y}`],
+    label: mapData.labels[`${x},${y}`],
+    jpname: mapData.jpnames[`${x},${y}`]
+  };
+  e.dataTransfer.setData('text/plain', `${x},${y}`);
+  e.target.classList.add('dragging');
+}
+
+function handleLeftDropOnGrid(e, targetX, targetY) {
+  if (leftMouseMode !== 'drag' || !draggedLeftNode) return;
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+
+  let oldKey = `${draggedLeftNode.x},${draggedLeftNode.y}`;
+  let newKey = `${targetX},${targetY}`;
+
+  delete mapData.types[oldKey];
+  delete mapData.labels[oldKey];
+  delete mapData.jpnames[oldKey];
+  mapData.nodes = mapData.nodes.filter(n => !(n.x === draggedLeftNode.x && n.y === draggedLeftNode.y));
+
+  mapData.nodes.push({ x: targetX, y: targetY });
+  if (draggedLeftNode.type) mapData.types[newKey] = draggedLeftNode.type;
+  if (draggedLeftNode.label) mapData.labels[newKey] = draggedLeftNode.label;
+  if (draggedLeftNode.jpname) mapData.jpnames[newKey] = draggedLeftNode.jpname;
+
+  draggedLeftNode = null;
+  renderLeftMap();
+  updateSummary();
+}
+
+// --- 右側拖曳邏輯 ---
+function handleRightDragStart(e, index) {
+  if (rightMouseMode !== 'drag') return;
+  draggedStationIndex = index;
+  e.dataTransfer.setData('text/plain', index);
+  e.target.classList.add('dragging');
+}
+
+function handleRightDropOnGrid(e, targetX, targetY) {
+  if (rightMouseMode !== 'drag') return;
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+
+  if (draggedStationIndex >= 0 && draggedStationIndex < stationData.length) {
+    stationData[draggedStationIndex].x = targetX;
+    stationData[draggedStationIndex].y = targetY;
+    draggedStationIndex = -1;
+    renderRightStation();
+    updateSummary();
+  }
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+// --- 獨立底圖參考視窗控制邏輯 ---
+function loadRefImageFile(event) {
+  let file = event.target.files[0];
+  if (!file) return;
+  let reader = new FileReader();
+  reader.onload = function(e) {
+    cachedImageSrc = e.target.result;
+    displayRefImage(cachedImageSrc);
+  };
+  reader.readAsDataURL(file);
+}
+
+function loadRefImageUrl() {
+  let input = document.getElementById('imgUrlInput');
+  if (!input) return;
+  let url = input.value.trim();
+  if (url) {
+    cachedImageSrc = url;
+    displayRefImage(cachedImageSrc);
+  }
+}
+
+function displayRefImage(src) {
+  let img = document.getElementById('refImageElement');
+  let txt = document.getElementById('imgPlaceholderText');
+  if (!img || !txt) return;
+  img.src = src;
+  img.classList.remove('hidden');
+  txt.classList.add('hidden');
+  resetImageTransform();
+}
+
+function updateImageTransform() {
+  let target = document.getElementById('imgViewerTransformTarget');
+  let label = document.getElementById('zoomImgLabel');
+  if (target) {
+    target.style.transform = `translate(${imgPanX}px, ${imgPanY}px) scale(${imgZoom})`;
+  }
+  if (label) {
+    label.innerText = Math.round(imgZoom * 100) + '%';
+  }
+}
+
+function adjustImageZoom(delta) {
+  imgZoom = Math.max(0.1, Math.min(5.0, imgZoom + delta));
+  updateImageTransform();
+}
+
+function resetImageTransform() {
+  imgZoom = 1.0;
+  imgPanX = 0;
+  imgPanY = 0;
+  updateImageTransform();
+}
+
+function startImgDrag(e) {
+  isDraggingImg = true;
+  startMouseX = e.clientX - imgPanX;
+  startMouseY = e.clientY - imgPanY;
+  let viewport = document.getElementById('imgViewerViewport');
+  if (viewport) viewport.style.cursor = 'grabbing';
+}
+
+function onImgDrag(e) {
+  if (!isDraggingImg) return;
+  imgPanX = e.clientX - startMouseX;
+  imgPanY = e.clientY - startMouseY;
+  updateImageTransform();
+}
+
+function stopImgDrag() {
+  isDraggingImg = false;
+  let viewport = document.getElementById('imgViewerViewport');
+  if (viewport) viewport.style.cursor = 'grab';
+}
+
+function onImgWheel(e) {
+  e.preventDefault();
+  let delta = e.deltaY < 0 ? 0.1 : -0.1;
+  adjustImageZoom(delta);
+}
+
+// --- 左側屬性 Modal 邏輯 ---
+function openNodeEditModal(x, y) {
+  currentEditingNode = { x, y };
+  document.getElementById('editCoordText').innerText = `(${x}, ${y})`;
+  
+  let currentType = mapData.types[`${x},${y}`] || "normal";
+  let currentLabel = mapData.labels[`${x},${y}`] || "";
+  let currentJpLabel = mapData.jpnames[`${x},${y}`] || "";
+
+  document.getElementById('editNodeTypeSelect').value = currentType;
+  document.getElementById('editNodeLabelInput').value = currentLabel;
+  document.getElementById('editNodeJpLabelInput').value = currentJpLabel;
+
+  document.getElementById('nodeEditModal').classList.remove('hidden');
+}
+
+function closeNodeEditModal() {
+  document.getElementById('nodeEditModal').classList.add('hidden');
+  currentEditingNode = null;
+}
+
+function saveNodeEdit() {
+  if (!currentEditingNode) return;
+  let { x, y } = currentEditingNode;
+  
+  let newType = document.getElementById('editNodeTypeSelect').value;
+  let newLabel = document.getElementById('editNodeLabelInput').value.trim();
+  let newJpLabel = document.getElementById('editNodeJpLabelInput').value.trim();
+
+  mapData.types[`${x},${y}`] = newType;
+  if (newLabel) mapData.labels[`${x},${y}`] = newLabel;
+  else delete mapData.labels[`${x},${y}`];
+
+  if (newJpLabel) mapData.jpnames[`${x},${y}`] = newJpLabel;
+  else delete mapData.jpnames[`${x},${y}`];
+
+  renderLeftMap();
+  updateSummary();
+  closeNodeEditModal();
+}
+
+// --- 右側車站 Modal 邏輯 ---
+function openStationEditModal(index) {
+  currentEditingStationIndex = index;
+  let st = stationData[index];
+  if (!st) return;
+
+  document.getElementById('editStationLabelInput').value = st.label;
+  document.getElementById('editStationJpInput').value = st.jpname || "";
+  document.getElementById('editStationXInput').value = st.x;
+  document.getElementById('editStationYInput').value = st.y;
+
+  document.getElementById('stationEditModal').classList.remove('hidden');
+}
+
+function closeStationEditModal() {
+  document.getElementById('stationEditModal').classList.add('hidden');
+  currentEditingStationIndex = -1;
+}
+
+function saveStationEdit() {
+  if (currentEditingStationIndex < 0) return;
+  
+  let newLabel = document.getElementById('editStationLabelInput').value.trim();
+  let newJp = document.getElementById('editStationJpInput').value.trim();
+  let newX = parseInt(document.getElementById('editStationXInput').value);
+  let newY = parseInt(document.getElementById('editStationYInput').value);
+
+  if (isNaN(newX) || isNaN(newY)) {
+    alert("請輸入有效的 X 與 Y 數字座標！");
+    return;
+  }
+
+  stationData[currentEditingStationIndex] = {
+    label: newLabel || "未命名車站",
+    jpname: newJp,
+    x: newX,
+    y: newY
+  };
+
+  renderRightStation();
+  updateSummary();
+  closeStationEditModal();
+}
+
+// --- 渲染左側地圖 ---
+function renderLeftMap() {
+  if (mapData.nodes.length === 0) return;
+
+  let minX = mapData.nodes[0].x, maxX = mapData.nodes[0].x;
+  let minY = mapData.nodes[0].y, maxY = mapData.nodes[0].y;
+  mapData.nodes.forEach(p => {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  });
+
+  if (leftMouseMode === 'drag') {
+    minX -= 1; maxX += 1; minY -= 1; maxY += 1;
+  }
+
+  let html = [`<div style="display:flex; flex-direction:column; gap:2px; font-family:monospace;">`];
+  
+  for (let y = maxY; y >= minY; y--) {
+    let row = [`<div style="display:flex; gap:2px;">`];
+    for (let x = minX; x <= maxX; x++) {
+      let nodeExists = mapData.nodes.some(p => p.x === x && p.y === y);
+      if (nodeExists) {
+        let typeKey = mapData.types[`${x},${y}`] || "normal";
+        let color = 屬性顏色[typeKey] || "#8e44ad";
+        let label = mapData.labels[`${x},${y}`];
+        let isAnchor = anchorMapNode && anchorMapNode.x === x && anchorMapNode.y === y;
+        let borderStyle = isAnchor ? "border: 2px solid #f59e0b; box-shadow:0 0 8px #f59e0b;" : "border: 1px solid rgba(255,255,255,0.2);";
+        let isDraggable = leftMouseMode === 'drag' ? 'draggable="true"' : '';
+
+        row.push(`
+          <div ${isDraggable} ondragstart="handleLeftDragStart(event, ${x}, ${y})" onclick="handleLeftNodeClick(${x}, ${y})" title="${isAnchorPickingMode ? '點擊設定為左側精準點' : (leftMouseMode === 'drag' ? '按住拖曳位置' : (leftMouseMode === 'edit' ? '點擊編輯屬性' : '點擊套用複製站名'))}" class="grid-node" style="background:${color}; color:white; width:64px; height:44px; display:flex; flex-direction:column; justify-content:center; align-items:center; border-radius:4px; padding:2px; cursor:pointer; box-sizing:border-box; relative; ${borderStyle}">
+            <span style="font-size:11px; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:58px;">${label || 屬性全名[typeKey]}</span>
+            <span style="font-size:9px; color:#fef08a;">(${x},${y})</span>
+          </div>
+        `);
+      } else {
+        row.push(`
+          <div ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleLeftDropOnGrid(event, ${x}, ${y})" style="width:64px; height:44px; background:#090d16; border:1px dashed #1e293b; border-radius:4px; box-sizing:border-box; opacity:0.3;"></div>
+        `);
+      }
+    }
+    row.push(`</div>`);
+    html.push(row.join(''));
+  }
+  html.push(`</div>`);
+
+  let container = document.getElementById('mapRenderInner');
+  if (container) {
+    container.innerHTML = html.join('');
+    container.style.transform = `scale(${zoomLeft})`;
+  }
+}
+
+// --- 渲染右側車站 ---
+function renderRightStation() {
+  if (stationData.length === 0) return;
+
+  let minX = stationData[0].x, maxX = stationData[0].x;
+  let minY = stationData[0].y, maxY = stationData[0].y;
+  stationData.forEach(p => {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  });
+
+  if (rightMouseMode === 'drag') {
+    minX -= 1; maxX += 1; minY -= 1; maxY += 1;
+  }
+
+  let stationMap = {};
+  stationData.forEach((st, idx) => stationMap[`${st.x},${st.y}`] = { ...st, idx });
+
+  let html = [`<div style="display:flex; flex-direction:column; gap:2px; font-family:monospace;">`];
+  
+  for (let y = maxY; y >= minY; y--) {
+    let row = [`<div style="display:flex; gap:2px;">`];
+    for (let x = minX; x <= maxX; x++) {
+      let st = stationMap[`${x},${y}`];
+      if (st) {
+        let isAnchor = anchorStationNode && anchorStationNode.x === x && anchorStationNode.y === y;
+        let borderStyle = isAnchor ? "border: 2px solid #f59e0b; box-shadow:0 0 8px #f59e0b;" : "border: 1px solid #3b82f6;";
+        let isDraggable = rightMouseMode === 'drag' ? 'draggable="true"' : '';
+
+        row.push(`
+          <div ${isDraggable} ondragstart="handleRightDragStart(event, ${st.idx})" onclick="handleRightStationClick(${st.idx})" title="${isAnchorPickingMode ? '點擊設定為右側精準點' : (rightMouseMode === 'drag' ? '拖曳搬移車站' : (rightMouseMode === 'edit' ? '點擊編輯資料' : '點擊複製'))}" class="grid-node" style="background:#1d4ed8; color:white; width:64px; height:44px; display:flex; flex-direction:column; justify-content:center; align-items:center; border-radius:4px; padding:2px; cursor:pointer; box-sizing:border-box; ${borderStyle}">
+            <span style="font-size:11px; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:58px;">${st.label}</span>
+            <span style="font-size:9px; color:#93c5fd;">(${st.x},${st.y})</span>
+          </div>
+        `);
+      } else {
+        row.push(`
+          <div ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleRightDropOnGrid(event, ${x}, ${y})" style="width:64px; height:44px; background:#090d16; border:1px dashed #1e293b; border-radius:4px; box-sizing:border-box; opacity:0.3;"></div>
+        `);
+      }
+    }
+    row.push(`</div>`);
+    html.push(row.join(''));
+  }
+  html.push(`</div>`);
+
+  let container = document.getElementById('stationRenderInner');
+  if (container) {
+    container.innerHTML = html.join('');
+    container.style.transform = `scale(${zoomRight})`;
+  }
+}
+
+// --- 縮放控制 ---
+function adjustZoom(side, delta) {
+  if (side === 'left') {
+    zoomLeft = Math.max(0.3, Math.min(3.0, zoomLeft + delta));
+    let lbl = document.getElementById('zoomLeftLabel');
+    if (lbl) lbl.innerText = Math.round(zoomLeft * 100) + '%';
+    let target = document.getElementById('mapRenderInner');
+    if (target) target.style.transform = `scale(${zoomLeft})`;
+  } else {
+    zoomRight = Math.max(0.3, Math.min(3.0, zoomRight + delta));
+    let lbl = document.getElementById('zoomRightLabel');
+    if (lbl) lbl.innerText = Math.round(zoomRight * 100) + '%';
+    let target = document.getElementById('stationRenderInner');
+    if (target) target.style.transform = `scale(${zoomRight})`;
+  }
+}
+
+function resetZoom(side) {
+  if (side === 'left') {
+    zoomLeft = 1.0;
+    let lbl = document.getElementById('zoomLeftLabel');
+    if (lbl) lbl.innerText = '100%';
+    let target = document.getElementById('mapRenderInner');
+    if (target) target.style.transform = 'scale(1.0)';
+  } else {
+    zoomRight = 1.0;
+    let lbl = document.getElementById('zoomRightLabel');
+    if (lbl) lbl.innerText = '100%';
+    let target = document.getElementById('stationRenderInner');
+    if (target) target.style.transform = 'scale(1.0)';
+  }
+}
+
+// --- 更新雙邊數量與對照統計 ---
+function updateSummary() {
+  let mapCount = mapData.nodes.length;
+  let leftStationCount = 0;
+
+  mapData.nodes.forEach(n => {
+    let t = mapData.types[`${n.x},${n.y}`] || "normal";
+    if (t === "normal") leftStationCount++;
+  });
+
+  let rightStationCount = stationData.length;
+  let matchedCount = 0;
+
+  stationData.forEach(st => {
+    let labelInLeft = mapData.labels[`${st.x},${st.y}`];
+    if (labelInLeft && labelInLeft === st.label) {
+      matchedCount++;
+    }
+  });
+
+  let unmatchedCount = rightStationCount - matchedCount;
+
+  let elMap = document.getElementById('mapCount');
+  let elLeftSt = document.getElementById('leftStationCount');
+  let elRightSt = document.getElementById('rightStationCount');
+  let elMatched = document.getElementById('matchedCount');
+  let elUnmatched = document.getElementById('unmatchedCount');
+  let elTitleLeft = document.getElementById('titleLeftStationCount');
+  let elTitleRight = document.getElementById('titleRightStationCount');
+  let elTitleMatched = document.getElementById('titleMatchedCount');
+
+  if (elMap) elMap.innerText = mapCount;
+  if (elLeftSt) elLeftSt.innerText = leftStationCount;
+  if (elRightSt) elRightSt.innerText = rightStationCount;
+  if (elMatched) elMatched.innerText = matchedCount;
+  if (elUnmatched) elUnmatched.innerText = unmatchedCount;
+  if (elTitleLeft) elTitleLeft.innerText = leftStationCount;
+  if (elTitleRight) elTitleRight.innerText = rightStationCount;
+  if (elTitleMatched) elTitleMatched.innerText = matchedCount;
+}
+
+// --- Modal 與導出邏輯 ---
+let currentExportType = 'merged';
+
+function openExportModal() {
+  generateExport('merged');
+  document.getElementById('exportModal').classList.remove('hidden');
+}
+
+function closeExportModal() {
+  document.getElementById('exportModal').classList.add('hidden');
+}
+
+function generateExport(type) {
+  currentExportType = type;
+  let output = "";
+  let title = "";
+
+  if (type === 'map') {
+    title = "🗺️ 地圖 JSON (純結構/類型/線段)";
+    let res = {
+      nodes: mapData.nodes.map(n => ({
+        x: n.x,
+        y: n.y,
+        type: mapData.types[`${n.x},${n.y}`] || "normal"
+      })),
+      blocked: mapData.blocked,
+      oneway: mapData.oneway,
+      shortcuts: mapData.shortcuts
+    };
+    output = JSON.stringify(res, null, 2);
+  } else if (type === 'station') {
+    title = "🏷️ 車站名稱 JSON (純名稱與座標)";
+    let res = stationData.map(st => ({
+      x: st.x,
+      y: st.y,
+      label: st.label,
+      jpname: st.jpname
+    }));
+    output = JSON.stringify(res, null, 2);
+  } else {
+    title = "📦 合併完整 JSON (含地圖結構與已對照名稱)";
+    let res = {
+      nodes: mapData.nodes.map(n => ({
+        x: n.x,
+        y: n.y,
+        type: mapData.types[`${n.x},${n.y}`] || "normal",
+        label: mapData.labels[`${n.x},${n.y}`] || "",
+        jpname: mapData.jpnames[`${n.x},${n.y}`] || ""
+      })),
+      blocked: mapData.blocked,
+      oneway: mapData.oneway,
+      shortcuts: mapData.shortcuts
+    };
+    output = JSON.stringify(res, null, 2);
+  }
+
+  document.getElementById('exportTypeTitle').innerText = title;
+  document.getElementById('exportArea').value = output;
+}
+
+function copyExportText() {
+  let text = document.getElementById('exportArea').value;
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  alert("✓ 已將 JSON 複製到剪貼簿！");
+}
+
+function downloadExportJSON() {
+  let text = document.getElementById('exportArea').value;
+  if (!text) return;
+  let blob = new Blob([text], { type: "application/json" });
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `momotetsu_${currentExportType}_export.json`;
+  a.click();
+}
+</script>
+</body>
+</html>
