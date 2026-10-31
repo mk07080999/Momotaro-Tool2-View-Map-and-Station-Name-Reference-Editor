@@ -1,10 +1,8 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-<meta charset="UTF-8">
+<html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>桃太郎電鐵 - 雙視圖網格與座標對照編輯器 (V8.6 點擊異常修復版)</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<title>桃太郎電鐵 - 雙視圖網格與座標對照編輯器 (V8.8.2 左側編輯升級版)</title>
 <style>
   :root {
     --bg-main: #0f172a;
@@ -97,15 +95,249 @@
     margin-bottom: 0;
     border-width: 0;
   }
+
+  /* 編輯屬性彈窗 (AttrPickerModal V8.8.2 專屬樣式) */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .attr-picker-card {
+    width: 380px;
+    max-width: 92vw;
+    background: #1e1e1e;
+    color: #f1f5f9;
+    border-radius: 8px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border: 1px solid #334155;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .picker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #334155;
+    margin-bottom: 10px;
+  }
+
+  .picker-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #f8fafc;
+  }
+
+  .picker-close {
+    background: none;
+    border: none;
+    font-size: 14px;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .picker-close:hover {
+    background: #334155;
+    color: #ffffff;
+  }
+
+  .form-group {
+    margin-bottom: 8px;
+  }
+
+  .form-label {
+    font-size: 11px;
+    font-weight: bold;
+    color: #cbd5e1;
+    margin-bottom: 4px;
+    display: block;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 11px;
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid #475569;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .form-input:focus {
+    border-color: #38bdf8;
+  }
+
+  /* 目前屬性區塊 */
+  .current-attr-box {
+    background: #111827;
+    border: 1px solid #374151;
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .current-attr-title {
+    font-size: 11px;
+    font-weight: bold;
+    color: #94a3b8;
+  }
+
+  .current-attr-badge {
+    font-size: 11px;
+    font-weight: bold;
+    color: #ffffff;
+    padding: 3px 10px;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* 各類型背景色 */
+  .bg-normal { background: #7c3aed; }     /* 🟣 車站: 紫色 */
+  .bg-blue { background: #0284c7; }       /* 🔵 藍格: 藍色 */
+  .bg-red { background: #dc2626; }        /* 🔴 紅格: 紅色 */
+  .bg-yellow { background: #d97706; }     /* 🟡 黃格: 琥珀色 */
+  .bg-bank { background: #0d9488; }       /* 🔗 連接站: 青綠色 */
+  .bg-card_shop { background: #4f46e5; }  /* 🏪 卡片賣場: 靛藍色 */
+  .bg-copy_station { background: #475569; }/* 🖨️ 複製車站 */
+  .bg-flight_station { background: #0284c7; }/* ✈️ 飛航車站 */
+  .bg-ship_station { background: #0891b2; }/* 🚢 乘船車站 */
+  .bg-rail_station { background: #78716c; }/* 🛤️ 鐵道站 */
+  .bg-heli_station { background: #ea580c; }/* 🚁 直升機站 */
+  .bg-reset_station { background: #ca8a04; }/* 🔄 重置周遊 */
+  .bg-good_card { background: #db2777; }  /* 💎 好卡片 */
+  .bg-special { background: #52525b; }    /* ⚙️ 特殊 */
+  .bg-monster { background: #65a30d; }    /* 👾 名產怪獸 */
+
+  /* 圖塊按鈕網格 */
+  .type-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .picker-t-btn {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    padding: 6px 4px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #ffffff;
+    cursor: pointer;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    opacity: 0.85;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .picker-t-btn:hover {
+    opacity: 1;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+
+  .picker-t-btn.active {
+    opacity: 1;
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+    transform: scale(1.02);
+  }
+
+  /* 按鈕顏色類別 */
+  .btn-normal { background: #7c3aed; }
+  .btn-blue { background: #0284c7; }
+  .btn-red { background: #dc2626; }
+  .btn-yellow { background: #d97706; }
+  .btn-bank { background: #0d9488; }
+  .btn-card_shop { background: #4f46e5; }
+  .btn-copy_station { background: #475569; }
+  .btn-flight_station { background: #0284c7; }
+  .btn-ship_station { background: #0891b2; }
+  .btn-rail_station { background: #78716c; }
+  .btn-heli_station { background: #ea580c; }
+  .btn-reset_station { background: #ca8a04; }
+  .btn-good_card { background: #db2777; }
+  .btn-special { background: #52525b; }
+  .btn-monster { background: #65a30d; }
+
+  #pickerMoreButtonsContainer {
+    background: #111827;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px dashed #374151;
+    margin-top: 6px;
+  }
+
+  .picker-select {
+    font-size: 11px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: #f8fafc;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .action-btn-group {
+    display: flex;
+    gap: 6px;
+    margin-top: 15px;
+  }
+
+  .btn-action {
+    flex: 1;
+    border: none;
+    padding: 8px 4px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .btn-action:hover {
+    opacity: 0.9;
+  }
+
+  .btn-save { background: #2563eb; color: #ffffff; }
+  .btn-delete { background: #dc2626; color: #ffffff; }
+  .btn-cancel { background: #475569; color: #ffffff; }
 </style>
-</head>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.inset-0{inset:0px}.z-10{z-index:10}.z-50{z-index:50}.mb-1{margin-bottom:0.25rem}.mb-2{margin-bottom:0.5rem}.ml-1{margin-left:0.25rem}.mt-0\.5{margin-top:0.125rem}.mt-2{margin-top:0.5rem}.block{display:block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.h-14{height:3.5rem}.h-full{height:100%}.h-screen{height:100vh}.h-80{height:20rem}.max-h-\[90vh\]{max-height:90vh}.min-h-0{min-height:0px}.min-h-\[46px\]{min-height:46px}.w-10{width:2.5rem}.w-56{width:14rem}.w-full{width:100%}.min-w-\[32px\]{min-width:32px}.max-w-none{max-width:none}.max-w-2xl{max-width:42rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.shrink-0{flex-shrink:0}.origin-top-left{transform-origin:top left}.cursor-default{cursor:default}.cursor-grab{cursor:grab}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;user-select:none}.resize-none{resize:none}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-center{align-items:center}.justify-start{justify-content:flex-start}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:0.25rem}.gap-1\.5{gap:0.375rem}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.space-y-4 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1rem * var(--tw-space-y-reverse))}.overflow-hidden{overflow:hidden}.overflow-y-auto{overflow-y:auto}.rounded{border-radius:0.25rem}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:0.5rem}.rounded-xl{border-radius:0.75rem}.border{border-width:1px}.border-b{border-bottom-width:1px}.border-t{border-top-width:1px}.border-none{border-style:none}.border-blue-800{--tw-border-opacity:1;border-color:rgb(30 64 175 / var(--tw-border-opacity, 1))}.border-emerald-500\/30{border-color:rgb(16 185 129 / 0.3)}.border-indigo-500{--tw-border-opacity:1;border-color:rgb(99 102 241 / var(--tw-border-opacity, 1))}.border-purple-800{--tw-border-opacity:1;border-color:rgb(107 33 168 / var(--tw-border-opacity, 1))}.border-slate-600{--tw-border-opacity:1;border-color:rgb(71 85 105 / var(--tw-border-opacity, 1))}.border-slate-700{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.bg-amber-600{--tw-bg-opacity:1;background-color:rgb(217 119 6 / var(--tw-bg-opacity, 1))}.bg-blue-600{--tw-bg-opacity:1;background-color:rgb(37 99 235 / var(--tw-bg-opacity, 1))}.bg-blue-950{--tw-bg-opacity:1;background-color:rgb(23 37 84 / var(--tw-bg-opacity, 1))}.bg-blue-950\/60{background-color:rgb(23 37 84 / 0.6)}.bg-emerald-500\/20{background-color:rgb(16 185 129 / 0.2)}.bg-emerald-600{--tw-bg-opacity:1;background-color:rgb(5 150 105 / var(--tw-bg-opacity, 1))}.bg-indigo-600{--tw-bg-opacity:1;background-color:rgb(79 70 229 / var(--tw-bg-opacity, 1))}.bg-purple-600{--tw-bg-opacity:1;background-color:rgb(147 51 234 / var(--tw-bg-opacity, 1))}.bg-purple-950{--tw-bg-opacity:1;background-color:rgb(59 7 100 / var(--tw-bg-opacity, 1))}.bg-purple-950\/60{background-color:rgb(59 7 100 / 0.6)}.bg-slate-700{--tw-bg-opacity:1;background-color:rgb(51 65 85 / var(--tw-bg-opacity, 1))}.bg-slate-800{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.bg-slate-900{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.bg-slate-900\/80{background-color:rgb(15 23 42 / 0.8)}.bg-slate-950{--tw-bg-opacity:1;background-color:rgb(2 6 23 / var(--tw-bg-opacity, 1))}.bg-slate-950\/80{background-color:rgb(2 6 23 / 0.8)}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.bg-amber-600\/80{background-color:rgb(217 119 6 / 0.8)}.bg-black\/70{background-color:rgb(0 0 0 / 0.7)}.bg-black\/80{background-color:rgb(0 0 0 / 0.8)}.bg-red-600{--tw-bg-opacity:1;background-color:rgb(220 38 38 / var(--tw-bg-opacity, 1))}.bg-red-600\/80{background-color:rgb(220 38 38 / 0.8)}.p-0\.5{padding:0.125rem}.p-1{padding:0.25rem}.p-1\.5{padding:0.375rem}.p-2{padding:0.5rem}.p-2\.5{padding:0.625rem}.p-3{padding:0.75rem}.p-6{padding:1.5rem}.p-8{padding:2rem}.p-4{padding:1rem}.px-1{padding-left:0.25rem;padding-right:0.25rem}.px-1\.5{padding-left:0.375rem;padding-right:0.375rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-2\.5{padding-left:0.625rem;padding-right:0.625rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.pb-2{padding-bottom:0.5rem}.pt-1{padding-top:0.25rem}.pt-2{padding-top:0.5rem}.text-left{text-align:left}.text-center{text-align:center}.font-mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-base{font-size:1rem;line-height:1.5rem}.text-xs{font-size:0.75rem;line-height:1rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.font-bold{font-weight:700}.italic{font-style:italic}.text-amber-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-blue-200{--tw-text-opacity:1;color:rgb(191 219 254 / var(--tw-text-opacity, 1))}.text-blue-300{--tw-text-opacity:1;color:rgb(147 197 253 / var(--tw-text-opacity, 1))}.text-blue-400{--tw-text-opacity:1;color:rgb(96 165 250 / var(--tw-text-opacity, 1))}.text-emerald-300{--tw-text-opacity:1;color:rgb(110 231 183 / var(--tw-text-opacity, 1))}.text-emerald-400{--tw-text-opacity:1;color:rgb(52 211 153 / var(--tw-text-opacity, 1))}.text-purple-200{--tw-text-opacity:1;color:rgb(233 213 255 / var(--tw-text-opacity, 1))}.text-purple-300{--tw-text-opacity:1;color:rgb(216 180 254 / var(--tw-text-opacity, 1))}.text-purple-400{--tw-text-opacity:1;color:rgb(192 132 252 / var(--tw-text-opacity, 1))}.text-red-400{--tw-text-opacity:1;color:rgb(248 113 113 / var(--tw-text-opacity, 1))}.text-slate-200{--tw-text-opacity:1;color:rgb(226 232 240 / var(--tw-text-opacity, 1))}.text-slate-300{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-slate-600{--tw-text-opacity:1;color:rgb(71 85 105 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.shadow{--tw-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.backdrop-blur-sm{--tw-backdrop-blur:blur(4px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition{transition-property:color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.duration-200{transition-duration:200ms}.duration-75{transition-duration:75ms}.hover\:bg-amber-500:hover{--tw-bg-opacity:1;background-color:rgb(245 158 11 / var(--tw-bg-opacity, 1))}.hover\:bg-blue-500:hover{--tw-bg-opacity:1;background-color:rgb(59 130 246 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-500:hover{--tw-bg-opacity:1;background-color:rgb(16 185 129 / var(--tw-bg-opacity, 1))}.hover\:bg-indigo-500:hover{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.hover\:bg-purple-500:hover{--tw-bg-opacity:1;background-color:rgb(168 85 247 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-600:hover{--tw-bg-opacity:1;background-color:rgb(71 85 105 / var(--tw-bg-opacity, 1))}.hover\:bg-red-500:hover{--tw-bg-opacity:1;background-color:rgb(239 68 68 / var(--tw-bg-opacity, 1))}.hover\:text-white:hover{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.focus\:border-amber-500:focus{--tw-border-opacity:1;border-color:rgb(245 158 11 / var(--tw-border-opacity, 1))}.focus\:border-blue-500:focus{--tw-border-opacity:1;border-color:rgb(59 130 246 / var(--tw-border-opacity, 1))}.focus\:border-purple-500:focus{--tw-border-opacity:1;border-color:rgb(168 85 247 / var(--tw-border-opacity, 1))}.focus\:border-emerald-500:focus{--tw-border-opacity:1;border-color:rgb(16 185 129 / var(--tw-border-opacity, 1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}@media (min-width: 768px){.md\:col-span-4{grid-column:span 4 / span 4}.md\:col-span-8{grid-column:span 8 / span 8}.md\:grid-cols-12{grid-template-columns:repeat(12, minmax(0, 1fr))}.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}}</style></head>
 <body class="p-3 text-xs flex flex-col h-screen overflow-hidden">
 
   <!-- 頂部標題、狀態導覽與快速切換按鈕群 -->
   <header class="bg-slate-800 border border-slate-700 rounded-lg p-2.5 mb-2 flex justify-between items-center shrink-0">
     <div class="flex items-center gap-3">
       <span class="text-base font-bold text-purple-400">🎮 桃鐵雙視圖網格對照編輯器</span>
-      <span class="bg-purple-600 text-white font-bold text-[10px] px-2 py-0.5 rounded-full">V8.6 修復版</span>
+      <span class="bg-purple-600 text-white font-bold text-[10px] px-2 py-0.5 rounded-full">V8.8.2 升級版</span>
       
       <!-- 動態佈局切換按鈕 -->
       <button id="layoutToggleBtn" onclick="toggleLayoutMode()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2.5 py-1 rounded text-[11px] transition shadow flex items-center gap-1 border border-indigo-500">
@@ -347,50 +579,78 @@
     </div>
   </div>
 
-  <!-- 左側：圖塊屬性編輯 Modal 彈窗 -->
-  <div id="nodeEditModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-    <div class="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-sm p-4 shadow-2xl flex flex-col gap-3">
-      <div class="flex justify-between items-center border-b border-slate-700 pb-2">
-        <span class="font-bold text-purple-300 text-sm">⚙️ 編輯左側圖塊屬性 <span id="editCoordText" class="text-amber-400 font-mono"></span></span>
-        <button onclick="closeNodeEditModal()" class="text-slate-400 hover:text-white font-bold">✕</button>
-      </div>
+  <!-- ⚙️ 左側：圖塊屬性編輯 Modal 彈窗 (AttrPickerModal V8.8.2) -->
+  <div id="attrPickerModal" class="modal-overlay" style="display: none;">
+    <div class="attr-picker-card">
+        
+        <div class="picker-header">
+            <span class="picker-title" id="pickerHeaderTitle">⚙️ 編輯左側圖塊屬性(0, 0)</span>
+            <button class="picker-close" onclick="closeNodeEditModal()">✕</button>
+        </div>
 
-      <div>
-        <label class="text-slate-300 font-bold block mb-1">圖塊類型 (Type)：</label>
-        <select id="editNodeTypeSelect" class="w-full bg-slate-950 text-white border border-slate-700 rounded p-1.5 font-bold focus:outline-none focus:border-purple-500">
-          <option value="normal">🟣 車站 (normal)</option>
-          <option value="blue">🔵 藍格 (blue)</option>
-          <option value="red">🔴 紅格 (red)</option>
-          <option value="yellow">🟡 黃格 (yellow)</option>
-          <option value="card_shop">🏪 卡片賣場 (card_shop)</option>
-          <option value="copy_station">🖨️ 複製車站 (copy_station)</option>
-          <option value="flight_station">✈️ 飛航車站 (flight_station)</option>
-          <option value="ship_station">🚢 乘船車站 (ship_station)</option>
-          <option value="rail_station">🛤️ 鐵道站 (rail_station)</option>
-          <option value="heli_station">🚁 直升機站 (heli_station)</option>
-          <option value="reset_station">🔄 重置車站 (reset_station)</option>
-          <option value="good_card">💎 好卡片站 (good_card)</option>
-          <option value="bank">🔗 連接站 (bank)</option>
-          <option value="special">⚙️ 特殊格 (special)</option>
-          <option value="monster">👾 怪獸格 (monster)</option>
-        </select>
-      </div>
+        <div class="form-group">
+            <label class="form-label">🏷️ 編輯車站名稱：</label>
+            <div style="display: flex; gap: 6px; margin-bottom: 4px;">
+                <input type="text" id="pickerLabelInput" class="form-input" placeholder="中文站名">
+                <input type="text" id="pickerJpnameInput" class="form-input" placeholder="日文站名">
+            </div>
+        </div>
 
-      <div>
-        <label class="text-slate-300 font-bold block mb-1">中文站名 (Label)：</label>
-        <input type="text" id="editNodeLabelInput" class="w-full bg-slate-950 text-emerald-400 border border-slate-700 rounded p-1.5 focus:outline-none focus:border-emerald-500" placeholder="例如: 東京">
-      </div>
+        <!-- 📌 目前屬性標籤區 -->
+        <div class="current-attr-box">
+            <span class="current-attr-title">📌 目前屬性：</span>
+            <span class="current-attr-badge bg-normal" id="pickerCurrentAttrDisplay">🟣 車站</span>
+        </div>
 
-      <div>
-        <label class="text-slate-300 font-bold block mb-1">日文站名 (JpName)：</label>
-        <input type="text" id="editNodeJpLabelInput" class="w-full bg-slate-950 text-blue-400 border border-slate-700 rounded p-1.5 focus:outline-none focus:border-blue-500" placeholder="例如: とうきょう">
-      </div>
+        <hr style="border: 0; border-top: 1px solid #334155; margin: 8px 0;">
 
-      <div class="flex gap-2 pt-2 border-t border-slate-700">
-        <button onclick="saveNodeEdit()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 rounded transition">儲存修改</button>
-        <button onclick="deleteCurrentNode()" class="bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded transition">🗑️ 刪除圖塊</button>
-        <button onclick="closeNodeEditModal()" class="px-3 bg-slate-700 hover:bg-slate-600 text-slate-300 py-1.5 rounded">取消</button>
-      </div>
+        <div style="display: flex; align-items: center; justify-content: flex-start; gap: 6px; margin-top: 6px;">
+            <span style="font-size: 11px; font-weight: bold; color: #cbd5e1;">🎨 圖塊類型：</span>
+            <select id="pickerTypeSelect" class="picker-select" onchange="onPickerDropdownChange(this.value)">
+                <option value="" disabled selected id="pickerSelectDefaultOption">🧩 選擇其他圖塊 ▼</option>
+                <option value="copy_station">🖨️ 複製車站</option>
+                <option value="flight_station">✈️ 飛航車站</option>
+                <option value="ship_station">🚢 乘船車站</option>
+                <option value="rail_station">🛤️ 鐵道站</option>
+                <option value="heli_station">🚁 直升機站</option>
+                <option value="reset_station">🔄 重置周遊</option>
+                <option value="good_card">💎 好卡片</option>
+                <option value="special">⚙️ 特殊</option>
+                <option value="monster">👾 名產怪獸</option>
+            </select>
+        </div>
+
+        <div class="type-grid" id="pickerCommonButtonsContainer">
+            <button class="picker-t-btn btn-normal" id="picker_t_normal" onclick="selectPickerType('normal')">🟣 車站</button>
+            <button class="picker-t-btn btn-blue" id="picker_t_blue" onclick="selectPickerType('blue')">🔵 藍格</button>
+            <button class="picker-t-btn btn-red" id="picker_t_red" onclick="selectPickerType('red')">🔴 紅格</button>
+            <button class="picker-t-btn btn-yellow" id="picker_t_yellow" onclick="selectPickerType('yellow')">🟡 黃格</button>
+            <button class="picker-t-btn btn-bank" id="picker_t_bank" onclick="selectPickerType('bank')">🔗 連接站</button>
+            <button class="picker-t-btn btn-card_shop" id="picker_t_card_shop" onclick="selectPickerType('card_shop')">🏪 卡片賣場</button>
+        </div>
+
+        <button id="btnTogglePickerMore" style="background: #374151; color: #f8fafc; border: 1px solid #4b5563; width: 100%; padding: 6px; font-size: 11px; margin-top: 6px; border-radius: 4px; cursor: pointer; font-weight: bold;" onclick="togglePickerMoreTypes()">
+            ➕ 展開其餘 9 種圖塊類型
+        </button>
+
+        <div id="pickerMoreButtonsContainer" style="display: none;" class="type-grid">
+            <button class="picker-t-btn btn-copy_station" id="picker_t_copy_station" onclick="selectPickerType('copy_station')">🖨️ 複製車站</button>
+            <button class="picker-t-btn btn-flight_station" id="picker_t_flight_station" onclick="selectPickerType('flight_station')">✈️ 飛航車站</button>
+            <button class="picker-t-btn btn-ship_station" id="picker_t_ship_station" onclick="selectPickerType('ship_station')">🚢 乘船車站</button>
+            <button class="picker-t-btn btn-rail_station" id="picker_t_rail_station" onclick="selectPickerType('rail_station')">🛤️ 鐵道站</button>
+            <button class="picker-t-btn btn-heli_station" id="picker_t_heli_station" onclick="selectPickerType('heli_station')">🚁 直升機站</button>
+            <button class="picker-t-btn btn-reset_station" id="picker_t_reset_station" onclick="selectPickerType('reset_station')">🔄 重置周遊</button>
+            <button class="picker-t-btn btn-good_card" id="picker_t_good_card" onclick="selectPickerType('good_card')">💎 好卡片</button>
+            <button class="picker-t-btn btn-special" id="picker_t_special" onclick="selectPickerType('special')">⚙️ 特殊</button>
+            <button class="picker-t-btn btn-monster" id="picker_t_monster" onclick="selectPickerType('monster')">👾 名產怪獸</button>
+        </div>
+
+        <div class="action-btn-group">
+            <button class="btn-action btn-save" onclick="saveNodeEdit()">💾 儲存修改</button>
+            <button class="btn-action btn-delete" onclick="deleteCurrentNode()">🗑️ 刪除圖塊</button>
+            <button class="btn-action btn-cancel" onclick="closeNodeEditModal()">❌ 取消</button>
+        </div>
+
     </div>
   </div>
 
@@ -458,7 +718,7 @@
               <button onclick="downloadExportJSON()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-[11px] font-bold shadow">📥 下載檔案</button>
             </div>
           </div>
-          <textarea id="exportArea" readonly class="w-full h-80 bg-slate-950 text-emerald-400 font-mono text-[11px] p-3 rounded border border-slate-700 resize-none focus:outline-none"></textarea>
+          <textarea id="exportArea" readonly="" class="w-full h-80 bg-slate-950 text-emerald-400 font-mono text-[11px] p-3 rounded border border-slate-700 resize-none focus:outline-none"></textarea>
         </div>
 
       </div>
@@ -492,6 +752,26 @@ const 屬性全名 = {
   reset_station: "重置", good_card: "好卡", bank: "連接",
   special: "特殊", monster: "怪獸"
 };
+
+const typeInfo = {
+  'normal': { name: '車站', icon: '🟣' },
+  'blue': { name: '藍格', icon: '🔵' },
+  'red': { name: '紅格', icon: '🔴' },
+  'yellow': { name: '黃格', icon: '🟡' },
+  'bank': { name: '連接站', icon: '🔗' },
+  'card_shop': { name: '卡片賣場', icon: '🏪' },
+  'copy_station': { name: '複製車站', icon: '🖨️' },
+  'flight_station': { name: '飛航車站', icon: '✈️' },
+  'ship_station': { name: '乘船車站', icon: '🚢' },
+  'rail_station': { name: '鐵道站', icon: '🛤️' },
+  'heli_station': { name: '直升機站', icon: '🚁' },
+  'reset_station': { name: '重置周遊', icon: '🔄' },
+  'good_card': { name: '好卡片', icon: '💎' },
+  'special': { name: '特殊', icon: '⚙️' },
+  'monster': { name: '名產怪獸', icon: '👾' }
+};
+
+let tempSelectedType = 'normal';
 
 let mapData = { nodes: [], blocked: [], oneway: [], shortcuts: [], types: {}, labels: {}, jpnames: {} };
 let stationData = []; 
@@ -1221,6 +1501,103 @@ function handleRightStationClick(index) {
   }
 }
 
+// --- V8.8.2 AttrPickerModal 控制邏輯 ---
+function openNodeEditModal(x, y) {
+  currentEditingNode = { x, y };
+  let key = `${x},${y}`;
+  let currentType = mapData.types[key] || "normal";
+  let currentLabel = mapData.labels[key] || "";
+  let currentJpLabel = mapData.jpnames[key] || "";
+
+  tempSelectedType = currentType;
+
+  document.getElementById('pickerHeaderTitle').innerText = `⚙️ 編輯左側圖塊屬性(${x}, ${y})`;
+  document.getElementById('pickerLabelInput').value = currentLabel;
+  document.getElementById('pickerJpnameInput').value = currentJpLabel;
+
+  updatePickerUI(tempSelectedType);
+  document.getElementById('attrPickerModal').style.display = 'flex';
+}
+
+function closeNodeEditModal() {
+  document.getElementById('attrPickerModal').style.display = 'none';
+  currentEditingNode = null;
+}
+
+function selectPickerType(type) {
+  tempSelectedType = type;
+  updatePickerUI(type);
+}
+
+function onPickerDropdownChange(type) {
+  if (type) {
+    selectPickerType(type);
+  }
+}
+
+function updatePickerUI(type) {
+  const info = typeInfo[type] || { name: type, icon: '❓' };
+  
+  const badgeEl = document.getElementById('pickerCurrentAttrDisplay');
+  if (badgeEl) {
+    badgeEl.innerText = `${info.icon} ${info.name}`;
+    badgeEl.className = `current-attr-badge bg-${type}`;
+  }
+
+  document.querySelectorAll('.picker-t-btn').forEach(btn => btn.classList.remove('active'));
+  const activeBtn = document.getElementById('picker_t_' + type);
+  if (activeBtn) {
+    activeBtn.classList.add('active');
+  }
+
+  const selectEl = document.getElementById('pickerTypeSelect');
+  if (selectEl) {
+    if (['copy_station', 'flight_station', 'ship_station', 'rail_station', 'heli_station', 'reset_station', 'good_card', 'special', 'monster'].includes(type)) {
+      selectEl.value = type;
+    } else {
+      selectEl.selectedIndex = 0;
+    }
+  }
+}
+
+function togglePickerMoreTypes() {
+  const container = document.getElementById('pickerMoreButtonsContainer');
+  const btn = document.getElementById('btnTogglePickerMore');
+
+  if (container.style.display === 'none' || !container.style.display) {
+    container.style.display = 'grid';
+    btn.innerText = '➖ 收納其餘圖塊類型';
+    btn.style.background = '#4b5563';
+  } else {
+    container.style.display = 'none';
+    btn.innerText = '➕ 展開其餘 9 種圖塊類型';
+    btn.style.background = '#374151';
+  }
+}
+
+function saveNodeEdit() {
+  if (!currentEditingNode) return;
+  let { x, y } = currentEditingNode;
+  let key = `${x},${y}`;
+  
+  let newLabel = document.getElementById('pickerLabelInput').value.trim();
+  let newJpLabel = document.getElementById('pickerJpnameInput').value.trim();
+
+  mapData.types[key] = tempSelectedType;
+  if (newLabel) mapData.labels[key] = newLabel;
+  else delete mapData.labels[key];
+
+  if (newJpLabel) mapData.jpnames[key] = newJpLabel;
+  else delete mapData.jpnames[key];
+
+  lastActionPosition = { x, y };
+
+  renderLeftMap();
+  updateSummary();
+  closeNodeEditModal();
+  showInlineFeedback(`✓ 圖塊資料儲存成功 (${x}, ${y})`);
+}
+
 function deleteCurrentNode() {
   if (!currentEditingNode) return;
   let { x, y } = currentEditingNode;
@@ -1380,50 +1757,6 @@ function onImgWheel(e) {
   e.preventDefault();
   let delta = e.deltaY < 0 ? 0.1 : -0.1;
   adjustImageZoom(delta);
-}
-
-function openNodeEditModal(x, y) {
-  currentEditingNode = { x, y };
-  document.getElementById('editCoordText').innerText = `(${x}, ${y})`;
-  
-  let currentType = mapData.types[`${x},${y}`] || "normal";
-  let currentLabel = mapData.labels[`${x},${y}`] || "";
-  let currentJpLabel = mapData.jpnames[`${x},${y}`] || "";
-
-  document.getElementById('editNodeTypeSelect').value = currentType;
-  document.getElementById('editNodeLabelInput').value = currentLabel;
-  document.getElementById('editNodeJpLabelInput').value = currentJpLabel;
-
-  document.getElementById('nodeEditModal').classList.remove('hidden');
-}
-
-function closeNodeEditModal() {
-  document.getElementById('nodeEditModal').classList.add('hidden');
-  currentEditingNode = null;
-}
-
-function saveNodeEdit() {
-  if (!currentEditingNode) return;
-  let { x, y } = currentEditingNode;
-  let key = `${x},${y}`;
-  
-  let newType = document.getElementById('editNodeTypeSelect').value;
-  let newLabel = document.getElementById('editNodeLabelInput').value.trim();
-  let newJpLabel = document.getElementById('editNodeJpLabelInput').value.trim();
-
-  mapData.types[key] = newType;
-  if (newLabel) mapData.labels[key] = newLabel;
-  else delete mapData.labels[key];
-
-  if (newJpLabel) mapData.jpnames[key] = newJpLabel;
-  else delete mapData.jpnames[key];
-
-  lastActionPosition = { x, y };
-
-  renderLeftMap();
-  updateSummary();
-  closeNodeEditModal();
-  showInlineFeedback(`✓ 圖塊資料儲存成功 (${x}, ${y})`);
 }
 
 function openStationEditModal(index) {
@@ -1873,7 +2206,7 @@ function generateSuperExport() {
   }
 
   let superPackage = {
-    version: "V8.6",
+    version: "V8.8.2",
     timestamp: new Date().toISOString(),
     mapData: {
       nodes: mapData.nodes.map(n => {
@@ -2023,6 +2356,9 @@ window.copyExportText = copyExportText;
 window.downloadExportJSON = downloadExportJSON;
 window.importSuperPackageFile = importSuperPackageFile;
 window.closeNodeEditModal = closeNodeEditModal;
+window.selectPickerType = selectPickerType;
+window.onPickerDropdownChange = onPickerDropdownChange;
+window.togglePickerMoreTypes = togglePickerMoreTypes;
 window.saveNodeEdit = saveNodeEdit;
 window.deleteCurrentNode = deleteCurrentNode;
 window.closeStationEditModal = closeStationEditModal;
