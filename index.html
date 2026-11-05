@@ -494,9 +494,8 @@
           <button onclick="resetZoom('left')" class="bg-slate-700 hover:bg-slate-600 px-1.5 rounded text-slate-300 text-[10px]">🏠</button>
         </div>
       </div>
-
-      <div id="containerLeft" class="flex-1 overflow-hidden relative bg-slate-950/80 flex justify-start items-start select-none cursor-default" onmousedown="startCanvasPan(event, 'left')" onmousemove="onCanvasPan(event, 'left')" onmouseup="stopCanvasPan('left')" onmouseleave="stopCanvasPan('left')" onwheel="onCanvasWheel(event, 'left')">
-        <div id="mapRenderInner" class="absolute origin-top-left transition-transform duration-75 p-6">
+      <div id="containerLeft" class="flex-1 overflow-hidden relative bg-slate-950/80 flex justify-start items-start select-none cursor-default" onpointerdown="startCanvasPan(event, 'left')" onpointermove="onCanvasPan(event, 'left')" onpointerup="stopCanvasPan('left')" onpointercancel="stopCanvasPan('left')" onwheel="onCanvasWheel(event, 'left')" style="touch-action: none;">
+      <div id="mapRenderInner" class="absolute origin-top-left transition-transform duration-75 p-6">
           <div class="text-slate-500 text-center p-8">請先在上方載入地圖 JSON...</div>
         </div>
       </div>
